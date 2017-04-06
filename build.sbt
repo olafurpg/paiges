@@ -28,6 +28,7 @@ lazy val paigesSettings = Seq(
     "-Xfuture"))
 
 lazy val commonJvmSettings = Seq(
+  libraryDependencies += "org.scalameta" %% "scalameta" % "1.6.0" % Test,
   testOptions in Test += Tests.Argument(TestFrameworks.ScalaTest, "-oDF"))
 
 lazy val commonJsSettings = Seq(
