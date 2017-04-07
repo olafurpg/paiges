@@ -10,29 +10,20 @@ class Scalafmt extends org.scalatest.FunSuite {
     case Lit(_) => str(tree.syntax)
     case Term.Name(name) => text(name)
     case Term.Select(qual, name) =>
-      toDoc(qual) +: "." +: toDoc(name)
+      toDoc(qual) + text(".") + toDoc(name)
     case Term.Apply(fun, args) =>
-      toDoc(fun) +:
+      toDoc(fun) +
         Doc.fill(comma, args.map(toDoc)).bracketBy(text("("), text(")"))
   }
   test("basic") {
     val build =
       new File(
-        "./core/src/test/scala/com/github/johnynek/paiges/Scalafmt.scala")
+        "./core/src/main/scala/com/github/johnynek/paiges/Doc.scala")
         .parse[Source]
         .get
         .structure
         .parse[Stat]
         .get
-    logger.elem(build, toDoc(build).render(80))
-    logger.elem(toDoc(q"""
-
-
-
-
-         a.b.c(1, 2
-
-
-         , 3, bar(1, 2, 43), 5, 5)""").render(14))
+    logger.elem(toDoc(build).render(130))
   }
 }
