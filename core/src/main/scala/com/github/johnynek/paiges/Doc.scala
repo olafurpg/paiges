@@ -6,6 +6,58 @@ import java.lang.StringBuilder
 import scala.annotation.tailrec
 import scala.util.matching.Regex
 
+/** Options to configure primitive Doc behavior.
+  *
+  * @param spaceInFlattenOption If true, replace line with space in flattenOption.
+  *                             If false, replace line with empty in flattenOption.
+  */
+case class DocConfig(spaceInFlattenOption: Boolean = true)
+
+class DocOps(config: DocConfig) {
+  import Doc.{ Empty, Text, Line, Nest, Concat, Union }
+  def flattenOption(doc: Doc): Option[Doc] = {
+    type DB = (Doc, Boolean)
+
+    def finish(last: DB, front: List[DB]): Option[Doc] = {
+      val (d, c) = front.foldLeft(last) {
+        case ((d1, c1), (d0, c2)) => (Concat(d0, d1), c1 || c2)
+      }
+      if (c) Some(d) else None
+    }
+
+    @tailrec
+    def loop(h: DB, stack: List[DB], front: List[DB]): Option[Doc] =
+      h._1 match {
+        case Empty | Text(_) =>
+          val noChange = h
+          stack match {
+            case Nil => finish(h, front)
+            case x :: xs => loop(x, xs, h :: front)
+          }
+        case Line =>
+          val next = if (config.spaceInFlattenOption) Doc.space else Doc.empty
+          val change = (next, true)
+          stack match {
+            case Nil => finish(change, front)
+            case x :: xs => loop(x, xs, change :: front)
+          }
+        case Nest(i, d) =>
+          /*
+           * This is different from flatten which always strips
+           * the Nest node. This will return None if there is
+           * no embedded Line inside
+           */
+          loop((d, h._2), stack, front) // no Line, so Nest is irrelevant
+        case Union(a, _) => loop((a, true), stack, front) // invariant: flatten(union(a, b)) == flatten(a)
+        case Concat(a, b) => loop((a, h._2), (b, h._2) :: stack, front)
+      }
+    loop((doc, false), Nil, Nil)
+  }
+}
+
+object DocOps extends DocOps(DocConfig()) // Default operations
+
+
 /**
  * implementation of Wadler's classic "A Prettier Printer"
  *
@@ -409,45 +461,7 @@ sealed abstract class Doc extends Product with Serializable {
    * As with flatten, the resulting Doc (if any) will never render any
    * newlines, no matter what width is used.
    */
-  def flattenOption: Option[Doc] = {
-
-    type DB = (Doc, Boolean)
-
-    def finish(last: DB, front: List[DB]): Option[Doc] = {
-     val (d, c) = front.foldLeft(last) {
-        case ((d1, c1), (d0, c2)) => (Concat(d0, d1), c1 || c2)
-      }
-     if (c) Some(d) else None
-    }
-
-    @tailrec
-    def loop(h: DB, stack: List[DB], front: List[DB]): Option[Doc] =
-      h._1 match {
-        case Empty | Text(_) =>
-          val noChange = h
-          stack match {
-            case Nil => finish(h, front)
-            case x :: xs => loop(x, xs, h :: front)
-          }
-        case Line =>
-          val next = Doc.space
-          val change = (next, true)
-          stack match {
-            case Nil => finish(change, front)
-            case x :: xs => loop(x, xs, change :: front)
-          }
-        case Nest(i, d) =>
-          /*
-           * This is different from flatten which always strips
-           * the Nest node. This will return None if there is
-           * no embedded Line inside
-           */
-          loop((d, h._2), stack, front) // no Line, so Nest is irrelevant
-        case Union(a, _) => loop((a, true), stack, front) // invariant: flatten(union(a, b)) == flatten(a)
-        case Concat(a, b) => loop((a, h._2), (b, h._2) :: stack, front)
-      }
-    loop((this, false), Nil, Nil)
-  }
+  def flattenOption: Option[Doc] = DocOps.flattenOption(this)
 
   /**
    * Returns the largest width which may affect how this Doc
