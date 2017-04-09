@@ -2,6 +2,8 @@ package com.github.johnynek.paiges
 import scala.meta._
 
 import java.io.File
+import java.nio.file.Files
+import java.nio.file.Paths
 
 import org.scalameta.logger
 class Scalafmt extends org.scalatest.FunSuite {
@@ -17,13 +19,14 @@ class Scalafmt extends org.scalatest.FunSuite {
   }
   test("basic") {
     val build =
-      new File(
-        "./core/src/main/scala/com/github/johnynek/paiges/Doc.scala")
+      new File("./core/src/main/scala/com/github/johnynek/paiges/Doc.scala")
         .parse[Source]
         .get
         .structure
         .parse[Stat]
         .get
-    logger.elem(toDoc(build).render(130))
+    val doc = toDoc(build).render(100)
+    logger.elem(doc)
+    Files.write(Paths.get("target", "paiges.scala"), doc.getBytes())
   }
 }

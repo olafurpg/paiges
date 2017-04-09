@@ -111,7 +111,7 @@ sealed abstract class Doc extends Product with Serializable {
    * By default, the indentation is two spaces.
    */
   def bracketBy(left: Doc, right: Doc, indent: Int = 2): Doc =
-    Concat(left, Concat(Concat(Doc.line, this).nest(indent), Concat(Doc.line, right)).grouped)
+    Concat(left, Concat(Concat(Doc.line, this).nest(indent), Concat(Doc.empty, right)).grouped)
 
   /**
    * Treat this Doc as a group that can be compressed.
@@ -431,7 +431,7 @@ sealed abstract class Doc extends Product with Serializable {
             case x :: xs => loop(x, xs, h :: front)
           }
         case Line =>
-          val next = Doc.space
+          val next = Doc.empty
           val change = (next, true)
           stack match {
             case Nil => finish(change, front)
