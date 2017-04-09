@@ -5,7 +5,7 @@ lazy val noPublish = Seq(
 
 lazy val paigesSettings = Seq(
   organization := "com.github.johnynek",
-  scalaVersion := "2.12.1",
+  // scalaVersion := "2.12.1", // set by DottyPlugin
   crossScalaVersions := Seq("2.10.6", "2.11.8", "2.12.1"),
   libraryDependencies ++= Seq(
     "org.scalatest" %%% "scalatest" % "3.0.1" % Test,
@@ -18,14 +18,7 @@ lazy val paigesSettings = Seq(
     "-language:higherKinds",
     "-language:implicitConversions",
     "-language:experimental.macros",
-    "-unchecked",
-    "-Xfatal-warnings",
-    "-Xlint",
-    "-Yno-adapted-args",
-    "-Ywarn-dead-code",
-    "-Ywarn-numeric-widen",
-    "-Ywarn-value-discard",
-    "-Xfuture"))
+    "-unchecked"))
 
 lazy val commonJvmSettings = Seq(
   testOptions in Test += Tests.Argument(TestFrameworks.ScalaTest, "-oDF"))
@@ -71,6 +64,7 @@ lazy val core = crossProject.crossType(CrossType.Pure)
   .disablePlugins(JmhPlugin)
   .jsSettings(commonJsSettings:_*)
   .jvmSettings(commonJvmSettings:_*)
+  .jvmConfigure(_.enablePlugins(DottyPlugin))
 
 lazy val coreJVM = core.jvm
 lazy val coreJS = core.js
