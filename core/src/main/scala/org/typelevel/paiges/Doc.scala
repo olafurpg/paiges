@@ -476,8 +476,10 @@ sealed abstract class Doc extends Product with Serializable {
             case x :: xs => loop(x, xs, h :: front)
           }
         case l@Line(_) =>
-          val next = l.asFlatDoc
-          loop(next, stack, front)
+          l.asFlatDoc match {
+            case Some(next) => loop(next, stack, front)
+            case _ => loop(Empty, stack, h :: front)
+          }
         case Nest(i, d) => loop(d, stack, front) // no Line, so Nest is irrelevant
         case Align(d) => loop(d, stack, front) // no Line, so Align is irrelevant
         case Union(a, _) => loop(a, stack, front) // invariant: flatten(union(a, b)) == flatten(a)
@@ -517,11 +519,14 @@ sealed abstract class Doc extends Product with Serializable {
             case x :: xs => loop(x, xs, h :: front)
           }
         case l@Line(_) =>
-          val next = l.asFlatDoc
-          val change = (next, true)
-          stack match {
-            case Nil => finish(change, front)
-            case x :: xs => loop(x, xs, change :: front)
+          l.asFlatDoc match {
+            case Some(next) =>
+              val change = (next, true)
+              stack match {
+                case Nil => finish(change, front)
+                case x :: xs => loop(x, xs, change :: front)
+              }
+            case _ => loop((Empty, false), stack, h :: front)
           }
         case Nest(i, d) =>
           /*
@@ -584,8 +589,20 @@ object Doc {
    * Represents a single, literal newline.
    * if flattenToSpace == true, flatten returns space else empty
    */
-  private[paiges] case class Line(flattenToSpace: Boolean) extends Doc {
-    def asFlatDoc: Doc = if (flattenToSpace) Doc.space else Doc.empty
+  private[paiges] case class Line(flat: Line.Flat) extends Doc {
+    def asFlatDoc: Option[Doc] = flat match {
+      case Line.Flat.None => None
+      case Line.Flat.Space => Some(Doc.space)
+      case Line.Flat.Empty => Some(Doc.empty)
+    }
+  }
+  object Line {
+    sealed abstract class Flat
+    object Flat {
+      case object None extends Flat
+      case object Space extends Flat
+      case object Empty extends Flat
+    }
   }
 
   /**
@@ -665,7 +682,7 @@ object Doc {
    * You might also @see lineBreak if you want a line that
    * is flattened into empty
    */
-  val line: Doc = Line(true)
+  val line: Doc = Line(Line.Flat.Space)
   /**
    * A lineBreak is a line that is flattened into
    * an empty Doc. This is generally useful in code
@@ -674,7 +691,13 @@ object Doc {
    *
    * when we call `.grouped` on lineBreak we get lineOrEmpty
    */
-  val lineBreak: Doc = Line(false)
+  val lineBreak: Doc = Line(Line.Flat.Empty)
+
+  /**
+   * Line that does not flatten. Use lineForce to force a newline
+   * even when .grouped can fit in a single line.
+   */
+  val lineForce: Doc = Line(Line.Flat.None)
 
   /**
    * lineOrSpace renders a space if we can fit the rest
