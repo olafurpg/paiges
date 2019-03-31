@@ -1,75 +1,15 @@
-import ReleaseTransformations._
 import sbtcrossproject.{crossProject, CrossType}
-import com.typesafe.tools.mima.plugin.MimaPlugin.mimaDefaultSettings
-
-lazy val noPublish = Seq(
-  publish := {},
-  publishLocal := {},
-  publishArtifact := false)
 
 val Scala211 = "2.11.12"
+val Scala212 = "2.12.8"
+val Scala213 = "2.13.0-M5"
 
-lazy val paigesSettings = Seq(
-  organization := "org.typelevel",
-  scalaVersion := "2.12.8",
-  crossScalaVersions := Seq(Scala211, "2.12.8", "2.13.0-M5"),
-  scalacOptions ++= (
-    CrossVersion.partialVersion(scalaVersion.value) match {
-      case Some((2, n)) if n <= 12 =>
-        Seq(
-          "-Xfatal-warnings",
-          "-Yno-adapted-args"
-        )
-      case _ =>
-        Nil
-    }
-  ),
-  scalacOptions ++= Seq(
-    "-deprecation",
-    "-encoding", "UTF-8",
-    "-feature",
-    "-language:existentials",
-    "-language:higherKinds",
-    "-language:implicitConversions",
-    "-language:experimental.macros",
-    "-unchecked",
-    "-Xlint",
-    "-Ywarn-dead-code",
-    "-Ywarn-numeric-widen",
-    "-Ywarn-value-discard",
-    "-Xfuture"),
-  // HACK: without these lines, the console is basically unusable,
-  // since all imports are reported as being unused (and then become
-  // fatal errors).
-  scalacOptions in (Compile, console) ~= {_.filterNot("-Xlint" == _)},
-  scalacOptions in (Test, console) := (scalacOptions in (Compile, console)).value,
-
-  // release stuff
-  releaseCrossBuild := true,
-  releasePublishArtifactsAction := PgpKeys.publishSigned.value,
-  publishMavenStyle := true,
-  publishArtifact in Test := false,
-  pomIncludeRepository := Function.const(false),
-  releaseProcess := Seq[ReleaseStep](
-    checkSnapshotDependencies,
-    inquireVersions,
-    runClean,
-    runTest,
-    setReleaseVersion,
-    commitReleaseVersion,
-    tagRelease,
-    publishArtifacts,
-    setNextVersion,
-    commitNextVersion,
-    releaseStepCommand("sonatypeReleaseAll"),
-    pushChanges),
-  publishTo := {
-    val nexus = "https://oss.sonatype.org/"
-    if (isSnapshot.value)
-      Some("Snapshots" at nexus + "content/repositories/snapshots")
-    else
-      Some("Releases" at nexus + "service/local/staging/deploy/maven2")
-  },
+inThisBuild(List(
+  organization := "com.geirsson",
+  scalaVersion := Scala212,
+  crossScalaVersions := Seq(Scala211, Scala212, Scala213),
+  licenses := List("Apache-2.0" -> url("http://www.apache.org/licenses/LICENSE-2.0")),
+  homepage := Some(url("https://github.com/typelevel/paiges")),
   pomExtra := (
     <url>https://github.com/typelevel/paiges</url>
     <licenses>
@@ -103,7 +43,11 @@ lazy val paigesSettings = Seq(
     </developers>
   ),
   coverageMinimum := 60,
-  coverageFailOnMinimum := false) ++ mimaDefaultSettings
+  coverageFailOnMinimum := false
+))
+
+crossScalaVersions := Nil
+skip in publish := true
 
 def previousArtifact(version: String, proj: String) = {
   // the "-dbuild..." part is for Scala community build friendliness
@@ -115,6 +59,39 @@ def previousArtifact(version: String, proj: String) = {
   }
 }
 
+lazy val commonSettings = Seq(
+  scalacOptions ++= Seq(
+    "-deprecation",
+    "-encoding", "UTF-8",
+    "-feature",
+    "-language:existentials",
+    "-language:higherKinds",
+    "-language:implicitConversions",
+    "-language:experimental.macros",
+    "-unchecked",
+    "-Xlint",
+    "-Ywarn-dead-code",
+    "-Ywarn-numeric-widen",
+    "-Ywarn-value-discard",
+    "-Xfuture"),
+  // HACK: without these lines, the console is basically unusable,
+  // since all imports are reported as being unused (and then become
+  // fatal errors).
+  scalacOptions in (Compile, console) ~= {_.filterNot("-Xlint" == _)},
+  scalacOptions in (Test, console) := (scalacOptions in (Compile, console)).value,
+  scalacOptions ++= (
+    CrossVersion.partialVersion(scalaVersion.value) match {
+      case Some((2, n)) if n <= 12 =>
+        Seq(
+          "-Xfatal-warnings",
+          "-Yno-adapted-args"
+        )
+      case _ =>
+        Nil
+    }
+  )
+)
+
 lazy val commonJvmSettings = Seq(
   testOptions in Test += Tests.Argument(TestFrameworks.ScalaTest, "-oDF"))
 
@@ -123,54 +100,29 @@ lazy val commonJsSettings = Seq(
   parallelExecution := false,
   jsEnv := new org.scalajs.jsenv.nodejs.NodeJSEnv(),
   // batch mode decreases the amount of memory needed to compile scala.js code
-  scalaJSOptimizerOptions := scalaJSOptimizerOptions.value.withBatchMode(scala.sys.env.get("TRAVIS").isDefined))
+  scalaJSOptimizerOptions := scalaJSOptimizerOptions.value.withBatchMode(scala.sys.env.get("TRAVIS").isDefined),
+  coverageEnabled := false
+)
 
-lazy val paiges = project
-  .in(file("."))
-  .settings(name := "root")
-  .settings(paigesSettings: _*)
-  .settings(noPublish: _*)
-  .aggregate(paigesJVM, paigesJS, paigesNative)
-  .dependsOn(paigesJVM, paigesJS, paigesNative)
+lazy val commonNativeSettings = Seq(
+  nativeLinkStubs := true,
+  scalaVersion := Scala211,
+  crossScalaVersions := Seq(Scala211),
+  mimaPreviousArtifacts := Set.empty
+)
 
-lazy val paigesJVM = project
-  .in(file(".paigesJVM"))
-  .settings(moduleName := "paiges")
-  .settings(paigesSettings)
-  .settings(commonJvmSettings)
-  .aggregate(coreJVM, catsJVM, benchmark)
-  .dependsOn(coreJVM, catsJVM, benchmark)
-
-lazy val paigesJS = project
-  .in(file(".paigesJS"))
-  .settings(moduleName := "paiges")
-  .settings(paigesSettings)
-  .settings(commonJsSettings)
-  .aggregate(coreJS, catsJS)
-  .dependsOn(coreJS, catsJS)
-  .enablePlugins(ScalaJSPlugin)
-
-lazy val paigesNative = project
-  .in(file(".paigesNative"))
-  .settings(moduleName := "paiges")
-  .settings(paigesSettings)
-  .settings(
-    scalaVersion := Scala211,
-    crossScalaVersions := Seq(Scala211),
-  )
-  .aggregate(coreNative)
-  .dependsOn(coreNative)
-
-lazy val core = crossProject(JSPlatform, JVMPlatform, NativePlatform).crossType(CrossType.Pure)
+lazy val core = crossProject(JSPlatform, JVMPlatform, NativePlatform)
+  .crossType(CrossType.Pure)
   .in(file("core"))
-  .settings(name := "paiges-core")
-  .settings(moduleName := "paiges-core")
-  .settings(paigesSettings: _*)
-  .settings(mimaPreviousArtifacts := previousArtifact(version.value, "core"))
+  .settings(
+    commonSettings,
+    name := "paiges-core",
+    moduleName := "paiges-core",
+    mimaPreviousArtifacts := previousArtifact(version.value, "core")
+  )
   .disablePlugins(JmhPlugin)
-  .jsSettings(commonJsSettings:_*)
-  .jsSettings(coverageEnabled := false)
-  .jvmSettings(commonJvmSettings:_*)
+  .jsSettings(commonJsSettings)
+  .jvmSettings(commonJvmSettings)
   .platformsSettings(JVMPlatform, JSPlatform)(
     libraryDependencies ++= Seq(
       "org.scalatest" %%% "scalatest" % "3.0.6-SNAP5" % Test,
@@ -178,9 +130,7 @@ lazy val core = crossProject(JSPlatform, JVMPlatform, NativePlatform).crossType(
     )
   )
   .nativeSettings(
-    scalaVersion := Scala211,
-    crossScalaVersions := Seq(Scala211),
-    nativeLinkStubs := true,
+    commonNativeSettings,
     scalacOptions in Compile -= "-Xfatal-warnings",
     sources in Test ~= {
       _.filter(f => Set("JsonTest.scala", "PaigesTest.scala").contains(f.getName))
@@ -194,40 +144,45 @@ lazy val coreJVM = core.jvm
 lazy val coreJS = core.js
 lazy val coreNative = core.native
 
-lazy val cats = crossProject(JSPlatform, JVMPlatform).crossType(CrossType.Pure)
+lazy val cats = crossProject(JSPlatform, JVMPlatform)
+  .crossType(CrossType.Pure)
   .in(file("cats"))
   .dependsOn(core % "compile->compile;test->test")
-  .settings(name := "paiges-cats")
-  .settings(moduleName := "paiges-cats")
-  .settings(paigesSettings: _*)
-  .settings(libraryDependencies ++= Seq(
-    "org.typelevel" %%% "cats-core" % "1.5.0",
-    "org.typelevel" %%% "cats-laws" % "1.5.0" % Test))
-  .settings(mimaPreviousArtifacts := previousArtifact(version.value, "cats"))
+  .settings(
+    commonSettings,
+    name := "paiges-cats",
+    moduleName := "paiges-cats",
+    libraryDependencies ++= Seq(
+      "org.typelevel" %%% "cats-core" % "1.5.0",
+      "org.typelevel" %%% "cats-laws" % "1.5.0" % Test),
+    mimaPreviousArtifacts := previousArtifact(version.value, "cats"))
   .disablePlugins(JmhPlugin)
-  .jsSettings(commonJsSettings:_*)
-  .jsSettings(coverageEnabled := false)
-  .jvmSettings(commonJvmSettings:_*)
+  .jsSettings(commonJsSettings)
+  .jvmSettings(commonJvmSettings)
 
 lazy val catsJVM = cats.jvm
 lazy val catsJS = cats.js
 
 lazy val benchmark = project.in(file("benchmark"))
   .dependsOn(coreJVM, catsJVM)
-  .settings(name := "paiges-benchmark")
-  .settings(paigesSettings: _*)
-  .settings(noPublish: _*)
-  .settings(coverageEnabled := false)
+  .settings(
+    commonSettings,
+    name := "paiges-benchmark",
+    coverageEnabled := false,
+    skip in publish := true
+  )
   .enablePlugins(JmhPlugin)
 
 lazy val docs = project.in(file("docs"))
   .dependsOn(coreJVM, catsJVM)
-  .settings(name := "paiges-docs")
-  .settings(paigesSettings: _*)
-  .settings(noPublish: _*)
   .enablePlugins(TutPlugin)
-  .settings(scalacOptions in Tut := {
-    val testOptions = scalacOptions.in(test).value
-    val unwantedOptions = Set("-Xlint", "-Xfatal-warnings")
-    testOptions.filterNot(unwantedOptions)
-  })
+  .settings(
+    commonSettings,
+    name := "paiges-docs",
+    skip in publish := true,
+    scalacOptions in Tut := {
+      val testOptions = scalacOptions.in(test).value
+      val unwantedOptions = Set("-Xlint", "-Xfatal-warnings")
+      testOptions.filterNot(unwantedOptions)
+    }
+  )
