@@ -47,69 +47,20 @@ inThisBuild(List(
 ))
 
 crossScalaVersions := Nil
-skip in publish := true
+noPublish
 
-def previousArtifact(version: String, proj: String) = {
-  // the "-dbuild..." part is for Scala community build friendliness
-  val regex = "0\\.([0-9]+)\\.[0-9]+(-SNAPSHOT|-dbuild[a-z0-9]*)?".r
-  version match {
-    case regex("1", _) => Set("org.typelevel" %% s"paiges-$proj" % "0.1.0")
-    case regex("2", _) => Set.empty[ModuleID]
-    case _ => throw new RuntimeException(s"Unexpected version: ${version}")
-  }
-}
+// Aggregate for JVM projects, for example run `jvm/test` to run only JVM tests.
+lazy val jvm = project.in(file(".jvm"))
+  .settings(noPublish)
+  .aggregate(coreJVM, catsJVM)
 
-lazy val commonSettings = Seq(
-  scalacOptions ++= Seq(
-    "-deprecation",
-    "-encoding", "UTF-8",
-    "-feature",
-    "-language:existentials",
-    "-language:higherKinds",
-    "-language:implicitConversions",
-    "-language:experimental.macros",
-    "-unchecked",
-    "-Xlint",
-    "-Ywarn-dead-code",
-    "-Ywarn-numeric-widen",
-    "-Ywarn-value-discard",
-    "-Xfuture"),
-  // HACK: without these lines, the console is basically unusable,
-  // since all imports are reported as being unused (and then become
-  // fatal errors).
-  scalacOptions in (Compile, console) ~= {_.filterNot("-Xlint" == _)},
-  scalacOptions in (Test, console) := (scalacOptions in (Compile, console)).value,
-  scalacOptions ++= (
-    CrossVersion.partialVersion(scalaVersion.value) match {
-      case Some((2, n)) if n <= 12 =>
-        Seq(
-          "-Xfatal-warnings",
-          "-Yno-adapted-args"
-        )
-      case _ =>
-        Nil
-    }
-  )
-)
+lazy val js = project.in(file(".js"))
+  .settings(noPublish)
+  .aggregate(coreJS, catsJS)
 
-lazy val commonJvmSettings = Seq(
-  testOptions in Test += Tests.Argument(TestFrameworks.ScalaTest, "-oDF"))
-
-lazy val commonJsSettings = Seq(
-  scalaJSStage in Global := FastOptStage,
-  parallelExecution := false,
-  jsEnv := new org.scalajs.jsenv.nodejs.NodeJSEnv(),
-  // batch mode decreases the amount of memory needed to compile scala.js code
-  scalaJSOptimizerOptions := scalaJSOptimizerOptions.value.withBatchMode(scala.sys.env.get("TRAVIS").isDefined),
-  coverageEnabled := false
-)
-
-lazy val commonNativeSettings = Seq(
-  nativeLinkStubs := true,
-  scalaVersion := Scala211,
-  crossScalaVersions := Seq(Scala211),
-  mimaPreviousArtifacts := Set.empty
-)
+lazy val native = project.in(file(".native"))
+  .settings(noPublish)
+  .aggregate(coreNative)
 
 lazy val core = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .crossType(CrossType.Pure)
@@ -167,9 +118,9 @@ lazy val benchmark = project.in(file("benchmark"))
   .dependsOn(coreJVM, catsJVM)
   .settings(
     commonSettings,
+    noPublish,
+    crossScalaVersions := List(Scala212),
     name := "paiges-benchmark",
-    coverageEnabled := false,
-    skip in publish := true
   )
   .enablePlugins(JmhPlugin)
 
@@ -178,11 +129,79 @@ lazy val docs = project.in(file("docs"))
   .enablePlugins(TutPlugin)
   .settings(
     commonSettings,
+    noPublish,
+    crossScalaVersions := List(Scala212),
     name := "paiges-docs",
-    skip in publish := true,
     scalacOptions in Tut := {
       val testOptions = scalacOptions.in(test).value
       val unwantedOptions = Set("-Xlint", "-Xfatal-warnings")
       testOptions.filterNot(unwantedOptions)
     }
   )
+
+def previousArtifact(version: String, proj: String) = {
+  // the "-dbuild..." part is for Scala community build friendliness
+  val regex = "0\\.([0-9]+)\\.[0-9]+(-SNAPSHOT|-dbuild[a-z0-9]*)?".r
+  version match {
+    case regex("1", _) => Set("org.typelevel" %% s"paiges-$proj" % "0.1.0")
+    case regex("2", _) => Set.empty[ModuleID]
+    case _ => throw new RuntimeException(s"Unexpected version: ${version}")
+  }
+}
+
+lazy val commonSettings = Seq(
+  scalacOptions ++= Seq(
+    "-deprecation",
+    "-encoding", "UTF-8",
+    "-feature",
+    "-language:existentials",
+    "-language:higherKinds",
+    "-language:implicitConversions",
+    "-language:experimental.macros",
+    "-unchecked",
+    "-Xlint",
+    "-Ywarn-dead-code",
+    "-Ywarn-numeric-widen",
+    "-Ywarn-value-discard",
+    "-Xfuture"),
+  // HACK: without these lines, the console is basically unusable,
+  // since all imports are reported as being unused (and then become
+  // fatal errors).
+  scalacOptions in (Compile, console) ~= {_.filterNot("-Xlint" == _)},
+  scalacOptions in (Test, console) := (scalacOptions in (Compile, console)).value,
+  scalacOptions ++= (
+    CrossVersion.partialVersion(scalaVersion.value) match {
+      case Some((2, n)) if n <= 12 =>
+        Seq(
+          "-Xfatal-warnings",
+          "-Yno-adapted-args"
+        )
+      case _ =>
+        Nil
+    }
+  )
+)
+
+lazy val noPublish = Seq(
+  skip in publish := true,
+  mimaPreviousArtifacts := Set.empty,
+  coverageEnabled := false
+)
+
+lazy val commonJvmSettings = Seq(
+  testOptions in Test += Tests.Argument(TestFrameworks.ScalaTest, "-oDF"))
+
+lazy val commonJsSettings = Seq(
+  scalaJSStage in Global := FastOptStage,
+  parallelExecution := false,
+  jsEnv := new org.scalajs.jsenv.nodejs.NodeJSEnv(),
+  // batch mode decreases the amount of memory needed to compile scala.js code
+  scalaJSOptimizerOptions := scalaJSOptimizerOptions.value.withBatchMode(scala.sys.env.get("TRAVIS").isDefined),
+  coverageEnabled := false
+)
+
+lazy val commonNativeSettings = Seq(
+  nativeLinkStubs := true,
+  scalaVersion := Scala211,
+  crossScalaVersions := Seq(Scala211)
+)

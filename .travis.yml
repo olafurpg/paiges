@@ -9,34 +9,37 @@ jobs:
   include:
     - scala: 2.11.12
       env: PLATFORM="jvm"
-      script: sbt "++ ${TRAVIS_SCALA_VERSION}" coverage coreJVM/test catsJVM/test docs/tut doc mimaReportBinaryIssues coverageReport && codecov
+      script: sbt "++ ${TRAVIS_SCALA_VERSION}" jvm/test
 
     - scala: 2.11.12
       env: PLATFORM="js"
-      script: sbt "++ ${TRAVIS_SCALA_VERSION}" coreJS/test catsJS/test doc
+      script: sbt "++ ${TRAVIS_SCALA_VERSION}" js/test
 
     - scala: 2.11.12
       env: PLATFORM="native"
       sudo: required
       before_install:
       - curl https://raw.githubusercontent.com/scala-native/scala-native/01fbdf7cf6f/scripts/travis_setup.sh | bash -
-      script: sbt "++ ${TRAVIS_SCALA_VERSION}" coreNative/test
+      script: sbt "++ ${TRAVIS_SCALA_VERSION}" native/test
 
     - scala: 2.12.8
       env: PLATFORM="jvm"
-      script: sbt "++ ${TRAVIS_SCALA_VERSION}" coverage coreJVM/test catsJVM/test docs/tut doc mimaReportBinaryIssues coverageReport && codecov
+      script: sbt "++ ${TRAVIS_SCALA_VERSION}" coverage jvm/test docs/tut coverageReport && codecov
 
     - scala: 2.12.8
       env: PLATFORM="js"
-      script: sbt "++ ${TRAVIS_SCALA_VERSION}" coreJS/test catsJS/test
+      script: sbt "++ ${TRAVIS_SCALA_VERSION}" js/test
 
     - scala: 2.13.0-M5
       env: PLATFORM="jvm"
-      script: sbt "++ ${TRAVIS_SCALA_VERSION}" coreJVM/test catsJVM/test
+      script: sbt "++ ${TRAVIS_SCALA_VERSION}" jvm/test
 
     - scala: 2.13.0-M5
       env: PLATFORM="js"
-      script: sbt "++ ${TRAVIS_SCALA_VERSION}" coreJS/test catsJS/test
+      script: sbt "++ ${TRAVIS_SCALA_VERSION}" js/test
+
+    - env: TEST="scaladoc+mima"
+      script: sbt +doc +mimaReportBinaryIssues
 
     - stage: release
       script: sbt ci-release
